@@ -159,14 +159,18 @@ ParseResult parse(Parser& parser) {
 
 	// Strip all beginning whitespace from 'val' and all ending whitespace
 	// from 'name'.
-	auto vws = val.find_first_not_of(whitespace);
-	if(vws != val.npos) {
-		val.remove_prefix(vws);
-	}
+	// auto vws = val.find_first_not_of(whitespace);
+	// if(vws != val.npos) {
+	// 	val.remove_prefix(vws);
+	// }
 
-	auto nws = name.find_last_not_of(whitespace);
-	if(nws != val.npos) {
-		name = name.substr(0, nws + 1);
+	// auto nws = name.find_last_not_of(whitespace);
+	// if(nws != val.npos) {
+	// 	name = name.substr(0, nws + 1);
+	// }
+
+	if(!val.empty() && val[0] == ' ') {
+		val.remove_prefix(1);
 	}
 
 	if(name.empty()) {

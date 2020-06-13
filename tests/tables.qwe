@@ -1,0 +1,4 @@
+# vim: set ts=2 sw=2 noexpandtab syntax=yaml:
+a: b
+c: d
+

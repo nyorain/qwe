@@ -1,0 +1,27 @@
+# vim: set ts=2 sw=2 noexpandtab syntax=yaml:
+# example file showing how this format could be used for i18n
+# also showing that string without quotes aren't that scary, really.
+german:
+	menu:
+		start: Spiel Starten
+		options: Optionen
+		quit: Beenden
+	options:
+		graphics:
+			this: Graphikeinstellungen
+			res: Auflösung
+			aa: Anti-Aliasing
+			shadows: Schattenqualität
+			textures: Texturenqualität
+english:
+	menu:
+		start: Play
+		options: Options
+		quit: Quit
+	options:
+		graphics:
+			this: Graphic settings
+			res: Resolution
+			aa: Anti-aliasing
+			shadows: Shadow quality
+			texture: Texture quality

@@ -1,0 +1,54 @@
+# vim: set ts=2 sw=2 noexpandtab syntax=yaml:
+# a file can also just be an array of value.
+# the array has no name, is the top-level value.
+# The newlines have no semantic meaning, everything below is
+# just one array
+1
+2
+3
+4
+5
+
+42
+43
+44
+45
+
+101
+102
+103
+
+# duplicate values are obviously allowed in an array
+1
+1
+1
+
+# we don't care about types, mix strings and numbers if you need
+test string
+a
+b
+c
+
+# tables/arrays cannot be nested into an array, i.e. the following would
+# be invalid (the whitespace in the beginning is just parsed into
+# the identifiers).
+# 	3
+# 	4
+# 	5
+# The main reason here is that it's not possible to separate whether
+# we see 1, 2 or 3 (sub-)arrays above. I.e. in an array of arrays,
+# the boundaries are not visible anymore. If you need something like this,
+# just use a table and explicitlyh number the sub-values
+# 0:
+# 	1
+# 	2
+# 	3
+# 1:
+# 	42
+# 	45
+# 	44
+# 2:
+# 	6
+# 	8
+# 	1
+

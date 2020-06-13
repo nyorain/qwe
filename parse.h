@@ -226,12 +226,12 @@ struct parse_result parse_value(struct parser* parser) {
 		};
 	}
 
-	// remove whitespace suffix in name
 	const char* name = parser->input;
 	const char* name_last = sep - 1;
-	while(name_last >= name - 1 && isspace(name_last[0])) {
-		--name_last;
-	}
+	// remove whitespace suffix in name
+	// while(name_last >= name - 1 && isspace(name_last[0])) {
+	// 	--name_last;
+	// }
 
 	// check that name is not empty
 	if(name_last < name) {
@@ -249,9 +249,12 @@ struct parse_result parse_value(struct parser* parser) {
 	memcpy(name_buf, name, name_len);
 	name_buf[name_len] = '\0';
 
-	// remove whitespace prefix in value
 	const char* value = sep + 1;
-	while((!nl || value < nl) && value[0] != '\0' && isspace(value[0])) {
+	// remove whitespace prefix in value
+	// while((!nl || value < nl) && value[0] != '\0' && isspace(value[0])) {
+	// 	++value;
+	// }
+	if((!nl || value < nl) && value[0] == ' ') {
 		++value;
 	}
 

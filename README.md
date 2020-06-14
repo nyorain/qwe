@@ -2,7 +2,7 @@
 
 This repository provides multiple APIs.
 
-- [`parse_cb.h`](!) is a standalone implementation of a non-allocating C parser
+- [parse_cb.h](parse_cb.h) is a standalone implementation of a non-allocating C parser
   that simply forwards the parsed data directly to a supplied callback.
   Most low-level interface but probably the most simple and small implementation.
 - `data.h`, `parse.h`, `print.h` implement a C data representation,

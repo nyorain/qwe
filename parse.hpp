@@ -130,7 +130,7 @@ ParseResult parseTableOrArray(Parser& parser) {
 
 ParseResult parse(Parser& parser) {
 	using std::move;
-	constexpr auto whitespace = "\n\t\f\r\v "; // as by std::isspace
+	// constexpr auto whitespace = "\n\t\f\r\v "; // as by std::isspace
 
 	if(parser.input.empty()) {
 		return Error{ErrorType::unexpectedEnd, parser.location};

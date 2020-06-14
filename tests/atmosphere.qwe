@@ -13,7 +13,7 @@ mie:
 rayleigh:
 	scattering:
 		# From http://renderwonk.com/publications/gdm-2002/GDM_August_2002.pdf
-		# Those values should rather  be calculated with a wavelength-dependent
+		# Those values should rather be calculated with a wavelength-dependent
 		# formula
 		rgb:
 			6.95e-6

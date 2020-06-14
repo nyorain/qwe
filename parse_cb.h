@@ -8,11 +8,16 @@
 #include <assert.h> // TODO
 
 #define NEST_SEP '.'
+#define MAX_LINE_SIZE 512
+#define MAX_NEST_SIZE 512
 
+// API
+struct parser;
 typedef void (*parse_func)(struct parser* parser,
 	 const char* name, const char* value);
 
 // fgets-like. Reads into parser->line_buf, can use parser->stream.
+// Must return NULL on error.
 typedef char*(*read_func)(struct parser* parser);
 
 struct location {
@@ -25,10 +30,10 @@ struct parser {
 	struct location location;
 
 	bool line_valid;
-	char line_buf[512];
+	char line_buf[MAX_LINE_SIZE];
 
 	unsigned nest_len; // < sizeof(nest_buf)
-	char nest_buf[512]; // always null terminated
+	char nest_buf[MAX_NEST_SIZE]; // always null terminated
 
 	parse_func cb;
 	void* user;
@@ -53,6 +58,11 @@ struct parse_result {
 	struct parser parser;
 };
 
+struct parse_result parse_from_file(FILE* file, parse_func func, void* user);
+struct parse_result parse_file(const char* filename, parse_func func, void* user);
+struct parse_result parse_string(const char* str, parse_func func, void* user);
+
+// Implementation
 char* parser_read_fgets(struct parser* parser) {
 	return fgets(parser->line_buf, sizeof(parser->line_buf), (FILE*) parser->stream);
 }
@@ -74,9 +84,11 @@ char* parser_read_mem(struct parser* parser) {
 		return buf;
 	}
 
-	strncpy(parser->line_buf, buf, writable - 1);
+	size_t len = strlen(buf);
+	size_t count = len < writable ? len : writable;
+	memcpy(parser->line_buf, buf, count);
 	// parser->line_buf[writable] = '\0'; // always there
-	parser->stream = buf + strlen(parser->line_buf);
+	parser->stream = buf + count;
 	return buf;
 }
 
@@ -151,7 +163,7 @@ enum error_type parse_table_or_array(struct parser* parser) {
 }
 
 enum error_type parse_value(struct parser* parser, char* line, int* state) {
-	location after_loc = parser->location;
+	struct location after_loc = parser->location;
 	char* nl = strchr(line, '\n');
 	unsigned in_len; // only defined when !nl
 	if(nl) {
@@ -162,7 +174,7 @@ enum error_type parse_value(struct parser* parser, char* line, int* state) {
 		after_loc.col += in_len;
 	}
 
-	auto sep = strchr(line, ':');
+	char* sep = strchr(line, ':');
 	assert(!nl || !sep || sep < nl);
 
 	// we just have a single string value
@@ -251,7 +263,7 @@ enum error_type parse_value(struct parser* parser, char* line, int* state) {
 	parser->nest_buf[parser->nest_len] = '\0';
 	++parser->location.nest_depth;
 
-	auto res = parse_table_or_array(parser);
+	enum error_type res = parse_table_or_array(parser);
 	if(res == error_type_none) {
 		--parser->location.nest_depth;
 		parser->nest_len = prev_len;
@@ -262,7 +274,7 @@ enum error_type parse_value(struct parser* parser, char* line, int* state) {
 }
 
 struct parse_result parse_from_file(FILE* file, parse_func func, void* user) {
-	parse_result res {};
+	struct parse_result res = {};
 	res.parser.stream = file;
 	res.parser.read = parser_read_fgets;
 	res.parser.cb = func;
@@ -272,7 +284,7 @@ struct parse_result parse_from_file(FILE* file, parse_func func, void* user) {
 }
 
 struct parse_result parse_string(const char* str, parse_func func, void* user) {
-	parse_result res {};
+	struct parse_result res = {};
 	res.parser.stream = (void*) str;
 	res.parser.read = parser_read_mem;
 	res.parser.cb = func;
@@ -282,7 +294,7 @@ struct parse_result parse_string(const char* str, parse_func func, void* user) {
 }
 
 struct parse_result parse_file(const char* filename, parse_func func, void* user) {
-	parse_result res {};
+	struct parse_result res = {};
 	res.parser.stream = fopen(filename, "r");
 	res.parser.read = parser_read_fgets;
 	res.parser.cb = func;

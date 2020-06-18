@@ -40,13 +40,155 @@ const Value* at(const Value& value, std::string_view name) {
 		std::tie(first, rest) = split(name, p);
 	}
 
-	auto it = table->find(first);
+	// TODO: with c++20 we don't have to construct a string here.
+	auto it = table->find(std::string(first));
 	if(it == table->end()) {
 		return nullptr;
 	}
 
 	return at(*it->second, rest);
 }
+
+// Fallback
+template<typename T, typename B>
+auto templatize(B&& val) {
+	return val;
+}
+
+template<typename T>
+struct ValueParser {
+	static std::optional<T> call(const Value& value) {
+		auto str = asString(value);
+		if(!str) {
+			return std::nullopt;
+		}
+
+		if constexpr(std::is_integral_v<T>) {
+			char* end {};
+			auto cstr = str->c_str();
+			auto v = std::strtoll(cstr, &end, 10u);
+			return end == cstr ? std::nullopt : std::optional(T(v));
+		} else if constexpr(std::is_floating_point_v<T>) {
+			char* end {};
+			auto cstr = str->c_str();
+			auto v = std::strtold(cstr, &end);
+			return end == cstr ? std::nullopt : std::optional(T(v));
+		}
+
+		static_assert(templatize<T>(false), "Can't parse type");
+	}
+};
+
+template<>
+struct ValueParser<std::string> {
+	static std::optional<std::string> call(const Value& value) {
+		auto str = asString(value);
+		return str ? std::optional(*str) : std::nullopt;
+	}
+};
+
+template<>
+struct ValueParser<std::string_view> {
+	static std::optional<std::string_view> call(const Value& value) {
+		auto str = asString(value);
+		return str ? std::optional(std::string_view(*str)) : std::nullopt;
+	}
+};
+
+template<typename T>
+std::optional<std::vector<T>> asVector(const Vector& vector) {
+	std::vector<T> ret;
+	ret.reserve(vector.size());
+	for(auto& v : vector) {
+		auto parsed = ValueParser<T>::call(*v);
+		if(!parsed) {
+			return std::nullopt;
+		}
+
+		ret.emplace_back(std::move(*parsed));
+	}
+
+	return ret;
+}
+
+template<typename T>
+struct ValueParser<std::vector<T>> {
+	static std::optional<std::vector<T>> call(const Value& value) {
+		auto* vec = asVector(value);
+		return vec ? asVector<T>(*vec) : std::nullopt;
+	}
+};
+
+template<typename T>
+std::optional<T> as(const Value& value) {
+	return ValueParser<T>::call(value);
+}
+
+template<typename T>
+std::optional<T> as(const Value& value, std::string_view field) {
+	auto v = at(value, field);
+	return v ? as<T>(v) : std::nullopt;
+}
+
+struct Dummy {
+	int a;
+	float b;
+};
+
+template<typename T>
+Value print(const T& val);
+
+template<typename T, typename D = ValueParser<T>>
+struct PodParser {
+	static std::optional<T> parse(const Value& value) {
+		T res;
+		for(auto& entry : D::map) {
+			auto& v = res.*(entry.second);
+			using V = std::decay_t<decltype(v)>;
+			auto pv = as<V>(value, entry.first);
+			if(!pv) {
+				return std::nullopt;
+			}
+			v = *pv;
+		}
+
+		return {res};
+	}
+
+	static Value print(const T& val) {
+		Table table;
+		for(auto& entry : D::map) {
+			auto& v = val.*(entry.second);
+			table.emplace(entry.first, print(v));
+		}
+
+		return {table};
+	}
+};
+
+template<typename B, typename... T>
+constexpr auto createMap(std::tuple<std::pair<const char*, T B::*>...> tup) {
+	return tup;
+}
+
+
+// template<>
+// struct ValueParser<Dummy> {
+// 	static std::optional<Dummy> call(const Value& value) {
+// 		auto va = as<decltype(Dummy::a)>(value, "a");
+// 		auto vb = as<decltype(Dummy::b)>(value, "b");
+// 		return va && vb ? std::optional(Dummy{*va, *vb}) : std::nullopt;
+// 	}
+// };
+
+template<>
+struct ValueParser<Dummy> : public PodParser<Dummy> {
+	static constexpr auto map = createMap(std::tuple{
+		std::pair{"a", &Dummy::a},
+		std::pair{"b", &Dummy::b},
+	});
+};
+
 
 /*
 template<typename T>

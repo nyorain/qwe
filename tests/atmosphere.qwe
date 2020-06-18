@@ -8,8 +8,12 @@ min_mu_s: -0.2
 ground_albedo: 0.1
 mie:
 	g: 0.8
-	density:
-		scale_height: 1200
+	scale_height: 1200
+	scattering:
+		rgb:
+			5.e-5
+			5.e-5
+			5.e-5
 rayleigh:
 	scattering:
 		# From http://renderwonk.com/publications/gdm-2002/GDM_August_2002.pdf
@@ -19,8 +23,7 @@ rayleigh:
 			6.95e-6
 			1.18e-5
 			2.44e-5
-	density:
-		scale_height: 1200
+	scale_height: 1200
 solar_irradiance:
 	# a really crude approximation of rgb values
 	# TODO: adjust for luminance scale/exposure at least
@@ -86,4 +89,6 @@ solar_irradiance:
 			1.1058
 			1.07124
 			1.04992
+
+
 

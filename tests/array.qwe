@@ -52,3 +52,65 @@ c
 # 	8
 # 	1
 
+
+# ideas for nested tables/arrays in arrays
+# - name: a
+# 	id: 2
+# - name: b
+# 	id: 3
+# This is how yaml does it. It's hard to parse, requires space indentation
+# and not obvious/intuitive at all what is done here.
+
+# or (array of tables):
+-
+	products:
+		-
+			name: 1
+			id: 1
+		-
+			name: 2
+			id: 2
+	average: 7
+
+-
+# array of arrays with above syntax:
+	sequence:
+		# first some normal array values
+		1
+		2
+		3
+		4
+		# and then nested arrays
+		-
+			6
+			7
+			6
+		-
+			2
+			5
+			3
+		-
+			2
+			3
+			6
+		-
+			# types are not fixed
+			name: 1
+			value: 3
+		-
+			# array of arrays as array elemt
+			-
+				5
+				3
+				2
+			-
+				5
+				2
+				1
+
+-
+	back to the front: yes
+
+8
+1
+2

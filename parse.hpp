@@ -93,7 +93,7 @@ ParseResult parseTableOrArray(Parser& parser) {
 		parser.location.col += first;
 		parser.input = after.substr(first);
 		if(parser.input.empty()) {
-			break;
+			return Error{ErrorType::unexpectedEnd, parser.location};
 		}
 
 		auto ploc = parser.location; // save it for later

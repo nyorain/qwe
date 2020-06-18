@@ -3,6 +3,7 @@
 #include <variant>
 #include <string_view>
 #include <cassert>
+#include <tuple>
 
 template<typename ...Ts>
 struct Visitor : Ts...  {
@@ -18,4 +19,20 @@ inline std::pair<std::string_view, std::string_view> split(
 	second.remove_prefix(pos + 1);
 	first.remove_suffix(src.size() - pos);
 	return {first, second};
+}
+
+inline std::pair<std::string_view, std::string_view> splitIf(
+		std::string_view src, std::string_view::size_type pos) {
+	return (pos == src.npos) ? std::pair{src, std::string_view{}} : split(src, pos);
+}
+
+template<std::size_t... I, typename F, typename Tuple>
+bool for_each_or(std::index_sequence<I...>, Tuple& tup, F&& func) {
+	return (func(std::get<I>(tup)) || ...);
+}
+
+template<typename F, typename Tuple>
+bool for_each_or(Tuple& tup, F&& func) {
+	return for_each_or(std::make_index_sequence<std::tuple_size_v<Tuple>>(),
+		tup, std::forward<F>(func));
 }

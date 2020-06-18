@@ -1,0 +1,17 @@
+# vim: set ts=2 sw=2 noexpandtab syntax=yaml:
+
+a: 7.1
+# b: 3
+c: 3
+d: uff: wtf is going on
+e:
+	-
+		a: 6
+		d: another string
+	-
+		a: 3
+		b: 7
+		d: ayeee
+f:
+	a: 6.3
+	b: 5.0e-5

@@ -7,7 +7,9 @@
 #include <ctype.h> // isspace
 #include <assert.h> // TODO
 
-#define NEST_SEP '.'
+#define NEST_SEP "."
+#define ARRAY_SEP "."
+
 #define MAX_LINE_SIZE 512
 #define MAX_NEST_SIZE 512
 
@@ -95,6 +97,7 @@ char* parser_read_mem(struct parser* parser) {
 enum error_type parse_value(struct parser* parser, char* line, int* state);
 enum error_type parse_table_or_array(struct parser* parser) {
 	int state = 0; // 0: don't know, 1: table, 2: array
+	unsigned n_items = 0u;
 	while(parser->line_valid || parser->read(parser)) {
 		char* input = parser->line_buf;
 		char* start = input;
@@ -153,10 +156,45 @@ enum error_type parse_table_or_array(struct parser* parser) {
 			break;
 		}
 
-		enum error_type err = parse_value(parser, start, &state);
-		if(err != error_type_none) {
-			return err;
+		// NOTE: extended array-nest syntax
+		if(start[0] == '-' && start[1] == '\n') {
+			if(state == 1) {
+				return error_type_mixed_table_array;
+			}
+
+			parser->location.col = 0u;
+			++parser->location.line;
+			++parser->location.nest_depth;
+
+			unsigned prev_len = parser->nest_len;
+			size_t bufsz = sizeof(parser->nest_buf) - parser->nest_len;
+			int count = snprintf(parser->nest_buf + parser->nest_len,
+				bufsz, "%s%d", parser->nest_len ? ARRAY_SEP : "", n_items);
+
+			assert(count >= 0);
+			if(count >= (int) bufsz) {
+				return error_type_nest_too_long;
+			}
+
+			parser->nest_len += count;
+
+			state = 2;
+			enum error_type err = parse_table_or_array(parser);
+			if(err != error_type_none) {
+				return err;
+			}
+
+			--parser->location.nest_depth;
+			parser->nest_len = prev_len;
+			parser->nest_buf[parser->nest_len] = '\0';
+		} else {
+			enum error_type err = parse_value(parser, start, &state);
+			if(err != error_type_none) {
+				return err;
+			}
 		}
+
+		++n_items;
 	}
 
 	return (state == 0) ? error_type_empty_table_array : error_type_none;
@@ -213,7 +251,8 @@ enum error_type parse_value(struct parser* parser, char* line, int* state) {
 		return error_type_empty_name;
 	}
 
-	unsigned name_len = 1 + name_last - name;
+	name_last[1] = '\0';
+	// unsigned name_len = 1 + name_last - name;
 
 	const char* value = sep + 1;
 	// remove whitespace prefix in value
@@ -229,7 +268,7 @@ enum error_type parse_value(struct parser* parser, char* line, int* state) {
 	// Value is not empty. We have found a table entry
 	if(value_len > 0) {
 		// null-terminate name and value
-		name_last[1] = '\0';
+		// name_last[1] = '\0';
 		if(nl) {
 			*nl = '\0';
 		}
@@ -243,6 +282,25 @@ enum error_type parse_value(struct parser* parser, char* line, int* state) {
 	// parser->input = after;
 	parser->location = after_loc;
 
+	unsigned prev_len = parser->nest_len;
+	// unsigned need_sep = parser->nest_len > 0 ? 1 : 0;
+	// unsigned needed = name_len + 1 + need_sep;
+	// if(parser->nest_len + needed >= sizeof(parser->nest_buf)) {
+	// 	return error_type_nest_too_long;
+	// }
+
+	size_t bufsz = sizeof(parser->nest_buf) - parser->nest_len;
+	int count = snprintf(parser->nest_buf + parser->nest_len,
+		bufsz, "%s%s", parser->nest_len ? NEST_SEP : "", name);
+
+	assert(count >= 0);
+	if(count >= (int) bufsz) {
+		return error_type_nest_too_long;
+	}
+
+	parser->nest_len += count;
+
+	/*
 	unsigned prev_len = parser->nest_len;
 	unsigned need_sep = parser->nest_len > 0 ? 1 : 0;
 	if(parser->nest_len + name_len + 1 + need_sep >= sizeof(parser->nest_buf)) {
@@ -261,6 +319,7 @@ enum error_type parse_value(struct parser* parser, char* line, int* state) {
 
 	// new (moved) terminator
 	parser->nest_buf[parser->nest_len] = '\0';
+	*/
 	++parser->location.nest_depth;
 
 	enum error_type res = parse_table_or_array(parser);

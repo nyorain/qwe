@@ -254,7 +254,7 @@ struct parse_result parse_value(struct parser* parser) {
 	// while((!nl || value < nl) && value[0] != '\0' && isspace(value[0])) {
 	// 	++value;
 	// }
-	if((!nl || value < nl) && value[0] == ' ') {
+	if((!nl || value < nl) && (value[0] == ' ' || value[0] == '\t')) {
 		++value;
 	}
 

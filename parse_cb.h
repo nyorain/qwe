@@ -153,7 +153,7 @@ enum error_type parse_table_or_array(struct parser* parser) {
 		// check if input is empty now
 		parser->location.col += indent;
 		if(start[0] == '\0') {
-			break;
+			return error_type_unexpected_end;
 		}
 
 		// NOTE: extended array-nest syntax

@@ -371,203 +371,6 @@ struct Serializer<std::array<T, N>> {
 	}
 };
 
-template<typename Pod, typename T, typename... Sub>
-struct PodEntry {
-	const char* name;
-	T Pod::* entry;
-	bool required {};
-	std::tuple<Sub...> subs {};
-	bool found {};
-};
-
-template<typename Pod, typename T> PodEntry(const char*, T Pod::*)
-	-> PodEntry<Pod, T>;
-template<typename Pod, typename T> PodEntry(const char*, T Pod::*, bool)
-	-> PodEntry<Pod, T>;
-
-template<typename Pod, typename T, typename... Sub>
-PodEntry(const char*, T Pod::*, bool, std::tuple<Sub...> subs)
-	-> PodEntry<Pod, T, Sub...>;
-
-template<typename T, typename D = Serializer<T>>
-struct PodSerializer {
-	template<typename... M>
-	static constexpr auto entryMap(M... entries) {
-		return std::tuple{entries...};
-	}
-
-	template<typename... M>
-	static ParseResult<T> parse(Parser& parser, std::tuple<M...> map) {
-		T res {}; // zero-initialized
-		while(!parser.input.empty()) {
-			bool done;
-			auto err = getLine(parser, done);
-			if(err != ErrorType::none) {
-				return err;
-			}
-
-			if(done) {
-				break;
-			}
-
-			auto content = parser.input;
-			if(content.empty()) {
-				return ErrorType::unexpectedEnd;
-			}
-
-			auto nl = content.find("\n");
-			auto line = content;
-			auto after = std::string_view {};
-			if(nl != content.npos) {
-				line = content.substr(0, nl);
-				after = content.substr(nl + 1);
-			}
-
-			auto sep = line.find(":");
-			if(sep == line.npos) {
-				return ErrorType::podNonTableEntry;
-			}
-
-			auto [name, val] = split(line, sep);
-			if(name.empty()) {
-				return ErrorType::emptyName;
-			}
-
-			// removing leading space in val
-			if(!val.empty() && val[0] == ' ') {
-				val.remove_prefix(1);
-			}
-
-			if(!val.empty()) {
-				parser.location.col += val.data() - content.data();
-				// parser.input = val; // and reset it later
-				parser.input = content.substr(val.data() - line.data());
-			} else if(val.empty()) {
-				parser.input = after;
-				parser.location.col = 0u;
-				++parser.location.line;
-			}
-
-			parser.location.nest.push_back(name);
-
-			// search for binding
-			err = ErrorType::none;
-
-			// 'ename = name' needed since capturing structured binding
-			// variables not possible (standard c++ bug, basically).
-			// See https://stackoverflow.com/questions/46114214/
-			auto found = for_each_or(map, [&, ename = name](auto& entry) {
-				// std::printf("%s vs %.*s\n", entry.name, ename.size(), ename.data());
-				if(entry.name != ename) {
-					return false;
-				}
-
-				if(entry.found) {
-					err = ErrorType::podDuplicateEntry;
-					return true;
-				}
-
-				entry.found = true;
-				auto& v = res.*(entry.entry);
-				using V = std::remove_reference_t<decltype(v)>;
-
-				ParseResult<V> r;
-				if constexpr(std::tuple_size_v<decltype(entry.subs)> == 0u) {
-					r = ::parse<V>(parser);
-				} else {
-					r = PodSerializer<V>::parse(parser, entry.subs);
-				}
-
-				if(auto nerr = std::get_if<ErrorType>(&r)) {
-					err = *nerr;
-					return true;
-				}
-
-				v = std::move(std::get<V>(r));
-				return true;
-			});
-
-			if(err != ErrorType::none) {
-				return err;
-			}
-
-			if(!found) {
-				return ErrorType::podInvalidEntry;
-			}
-
-			parser.location.nest.pop_back();
-		}
-
-		// Check that all required entries were present.
-		auto missing = for_each_or(map, [](auto& entry) {
-			return entry.required && !entry.found;
-		});
-
-		if(missing) {
-			return ErrorType::podMissingField;
-		}
-
-		return {res};
-	}
-
-	static ParseResult<T> parse(Parser& parser) {
-		return parse(parser, D::map);
-	}
-
-	template<typename Map>
-	static void print(Printer& printer, const T& val, const Map& map) {
-		auto inArray = printer.inArray;
-		if(inArray) {
-			printer.out += "-\n";
-			++printer.ident;
-		}
-
-		for_each_or(map, [&](auto& entry) {
-			printer.inArray = false;
-			printer.out += "\n";
-			printer.out.append(printer.ident, '\t');
-
-			auto& v = val.*(entry.entry);
-			using V = std::remove_reference_t<decltype(v)>;
-			++printer.ident;
-
-			printer.out += entry.name;
-			printer.out += ": ";
-
-			if constexpr(std::tuple_size_v<decltype(entry.subs)> == 0u) {
-				::print(printer, v);
-			} else {
-				PodSerializer<V>::print(printer, v, entry.subs);
-			}
-
-			--printer.ident;
-			return false; // never return early; print all elements
-		});
-
-		if(inArray) {
-			--printer.ident;
-		}
-
-		printer.inArray = inArray;
-	}
-
-	static void print(Printer& printer, const T& val) {
-		print(printer, val, D::map);
-	}
-};
-
-// NOTE: WIP: simpler Pod serializer API (especially for nested members)
-template<typename T>
-struct MapEntry {
-	std::string_view name;
-	T& val;
-	bool required {};
-	bool done {}; // found/printed
-};
-
-template<typename T> MapEntry(std::string_view, T&) -> MapEntry<T>;
-template<typename T> MapEntry(std::string_view, T&, bool) -> MapEntry<T>;
-
 template<typename M>
 ErrorType parse(Parser& parser, M& map, std::string_view prefix = "") {
 	while(!parser.input.empty()) {
@@ -674,11 +477,7 @@ ErrorType parse(Parser& parser, M& map, std::string_view prefix = "") {
 				if(!nprefix.empty()) nprefix += ".";
 				nprefix += name;
 
-				std::printf("rec %.*s\n", nprefix.size(), nprefix.data());
-
 				auto err = ::parse(parser, map, nprefix);
-				std::printf(" >> done\n");
-
 				if(err != ErrorType::none) {
 					return err;
 				}
@@ -702,7 +501,6 @@ void print(Printer& printer, M& map, std::string_view prefix = "") {
 	}
 
 	for_each_or(map, [&](auto& entry) {
-		// std::printf("print %.*s\n", entry.name.size(), entry.name.data());
 		if(entry.done || entry.name.length() <= prefix.length() ||
 				entry.name.substr(0, prefix.length()) != prefix) {
 			return false;
@@ -729,14 +527,9 @@ void print(Printer& printer, M& map, std::string_view prefix = "") {
 			if(!nprefix.empty()) nprefix += ".";
 			nprefix += name;
 
-			// std::printf("rec %.*s; prefix: %.*s\n",
-			// 	name.size(), name.data(), nprefix.size(), nprefix.data());
-
 			++printer.ident;
 			::print(printer, map, nprefix);
 			--printer.ident;
-
-			// std::printf(" >> done\n");
 
 			return false;
 		}
@@ -764,7 +557,7 @@ void print(Printer& printer, M& map, std::string_view prefix = "") {
 }
 
 template<typename T, typename D = Serializer<T>>
-struct PodSerializer2 {
+struct PodSerializer {
 	static ParseResult<T> parse(Parser& parser) {
 		T res {}; // zero-initialized
 		auto map = D::map(res);

@@ -36,3 +36,15 @@ bool for_each_or(Tuple& tup, F&& func) {
 	return for_each_or(std::make_index_sequence<std::tuple_size_v<Tuple>>(),
 		tup, std::forward<F>(func));
 }
+
+template<typename T>
+struct MapEntry {
+	std::string_view name;
+	T& val;
+	bool required {};
+	bool done {}; // found/printed
+};
+
+template<typename T> MapEntry(std::string_view, T&) -> MapEntry<T>;
+template<typename T> MapEntry(std::string_view, T&, bool) -> MapEntry<T>;
+

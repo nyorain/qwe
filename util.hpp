@@ -130,11 +130,6 @@ std::optional<T> as(const Value& value, std::string_view field) {
 	return v ? as<T>(v) : std::nullopt;
 }
 
-struct Dummy {
-	int a;
-	float b;
-};
-
 template<typename T>
 Value print(const T& val);
 
@@ -142,54 +137,46 @@ template<typename T, typename D = ValueParser<T>>
 struct PodParser {
 	static std::optional<T> parse(const Value& value) {
 		T res;
-		for(auto& entry : D::map) {
-			auto& v = res.*(entry.second);
+		auto map = D::map(res);
+
+		bool error = for_each_or(map, [&](auto& entry) {
+			auto& v = entry.val;
 			using V = std::decay_t<decltype(v)>;
-			auto pv = as<V>(value, entry.first);
-			if(!pv) {
-				return std::nullopt;
+
+			auto val = at(value, entry.name);
+			if(!val) {
+				return entry.required;
 			}
+
+			auto pv = as<V>(*val);
+			if(!pv) {
+				return true;
+			}
+
 			v = *pv;
+			return false;
+		});
+
+		if(error) {
+			return std::nullopt;
 		}
 
-		return {res};
+		return res;
 	}
 
 	static Value print(const T& val) {
+		auto map = D::map(val);
 		Table table;
-		for(auto& entry : D::map) {
-			auto& v = val.*(entry.second);
-			table.emplace(entry.first, print(v));
-		}
+		for_each_or(map, [&](auto& entry) {
+			table.emplace(entry.name, print(entry.val));
+		});
 
 		return {table};
 	}
 };
 
-template<typename B, typename... T>
-constexpr auto createMap(std::tuple<std::pair<const char*, T B::*>...> tup) {
-	return tup;
-}
 
-
-// template<>
-// struct ValueParser<Dummy> {
-// 	static std::optional<Dummy> call(const Value& value) {
-// 		auto va = as<decltype(Dummy::a)>(value, "a");
-// 		auto vb = as<decltype(Dummy::b)>(value, "b");
-// 		return va && vb ? std::optional(Dummy{*va, *vb}) : std::nullopt;
-// 	}
-// };
-
-template<>
-struct ValueParser<Dummy> : public PodParser<Dummy> {
-	static constexpr auto map = createMap(std::tuple{
-		std::pair{"a", &Dummy::a},
-		std::pair{"b", &Dummy::b},
-	});
-};
-
-
+// TODO: std::from_chars not supported yet in stdlibc++
 /*
 template<typename T>
 std::optional<T> asFromChars(const Value& value) {

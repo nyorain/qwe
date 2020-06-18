@@ -96,6 +96,30 @@ ParseResult parseTableOrArray(Parser& parser) {
 			return Error{ErrorType::unexpectedEnd, parser.location};
 		}
 
+		// NOTE: extended array-nest syntax
+		if(parser.input[0] == '-' && parser.input[1] == '\n') {
+			if(isTable && *isTable) {
+				return Error{ErrorType::mixedTableArray, parser.location};
+			}
+
+			parser.input = parser.input.substr(2);
+
+			parser.location.col = 0u;
+			++parser.location.line;
+			parser.location.nest.push_back(std::to_string(vector.size()));
+			isTable = {false};
+
+			auto res = parseTableOrArray(parser);
+			if(auto err = std::get_if<Error>(&res)) {
+				return {*err};
+			}
+
+			parser.location.nest.pop_back();
+			auto& nv = std::get<NamedValue>(res);
+			vector.push_back(std::make_unique<Value>(std::move(nv.value)));
+			continue;
+		}
+
 		auto ploc = parser.location; // save it for later
 		auto res = parse(parser);
 		if(auto err = std::get_if<Error>(&res)) {

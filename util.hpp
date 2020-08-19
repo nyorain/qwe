@@ -2,6 +2,7 @@
 
 #include "data.hpp"
 #include "parse.hpp"
+#include <stdexcept>
 
 std::string* asString(Value& value) {
 	return std::get_if<std::string>(&value.value);
@@ -50,11 +51,6 @@ const Value* at(const Value& value, std::string_view name) {
 }
 
 // Fallback
-template<typename T, typename B>
-auto templatize(B&& val) {
-	return val;
-}
-
 template<typename T>
 struct ValueParser {
 	static std::optional<T> call(const Value& value) {
@@ -73,9 +69,9 @@ struct ValueParser {
 			auto cstr = str->c_str();
 			auto v = std::strtold(cstr, &end);
 			return end == cstr ? std::nullopt : std::optional(T(v));
+		} else {
+			static_assert(templatize<T>(false), "Can't parse type");
 		}
-
-		static_assert(templatize<T>(false), "Can't parse type");
 	}
 };
 
@@ -131,6 +127,26 @@ std::optional<T> as(const Value& value, std::string_view field) {
 }
 
 template<typename T>
+T asT(const Value& value) {
+	auto optT = ValueParser<T>::call(value);
+	if(!optT) {
+		throw std::runtime_error("Invalid Value access");
+	}
+
+	return *optT;
+}
+
+template<typename T>
+std::optional<T> asT(const Value& value, std::string_view field) {
+	auto optT = as<T>(value, field);
+	if(!optT) {
+		throw std::runtime_error("Invalid Value access");
+	}
+
+	return *optT;
+}
+
+template<typename T>
 Value print(const T& val);
 
 template<typename T, typename D = ValueParser<T>>
@@ -176,46 +192,25 @@ struct PodParser {
 };
 
 
-// TODO: std::from_chars not supported yet in stdlibc++
-/*
-template<typename T>
-std::optional<T> asFromChars(const Value& value) {
-	auto str = asString(value);
-	if(!str) {
-		return std::nullopt;
-	}
-
-	T v;
-	auto end = str->data() + str->size();
-	auto res = std::from_chars(str->data(), end, v);
-	if(res.ec != std::errc() || res.ptr != end) {
-		return std::nullopt;
-	}
-
-	return v;
+std::string& asStringT(Value& value) {
+	return std::get<std::string>(value.value);
+}
+Table& asTableT(Value& value) {
+	return std::get<Table>(value.value);
+}
+Vector& asVectorT(Value& value) {
+	return std::get<Vector>(value.value);
 }
 
-std::optional<std::uint64_t> asUint(const Value& value) {
-	return asFromChars<std::uint64_t>(value);
+const std::string& asStringT(const Value& value) {
+	return std::get<std::string>(value.value);
 }
-
-std::optional<std::int64_t> asInt(const Value& value) {
-	return asFromChars<std::int64_t>(value);
+const Table& asTableT(const Value& value) {
+	return std::get<Table>(value.value);
 }
-
-std::optional<double> asDouble(const Value& value) {
-	return asFromChars<double>(value);
+const Vector& asVectorT(const Value& value) {
+	return std::get<Vector>(value.value);
 }
-*/
-
-// // TODO throwing versions
-// std::string& asStringT();
-// Table& asTableT();
-// Vector& asVectorT();
-//
-// std::uint64_t asUintT();
-// std::int64_t asIntT();
-// double asDoubleT();
 
 std::string print(const Error& err) {
 	std::string res;

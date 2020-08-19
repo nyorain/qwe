@@ -48,3 +48,7 @@ struct MapEntry {
 template<typename T> MapEntry(std::string_view, T&) -> MapEntry<T>;
 template<typename T> MapEntry(std::string_view, T&, bool) -> MapEntry<T>;
 
+template<typename T, typename B>
+auto templatize(B&& val) {
+	return val;
+}

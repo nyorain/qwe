@@ -56,11 +56,6 @@ enum class ErrorType {
 
 template<typename T> using ParseResult = std::variant<T, ErrorType>;
 
-template<typename T, typename B>
-constexpr auto templatize(B&& val) {
-	return val;
-}
-
 template<typename T, typename = void> struct Serializer;
 
 template<typename T> ParseResult<T> parse(Parser& parser) {

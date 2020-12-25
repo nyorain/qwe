@@ -1,6 +1,6 @@
 # APIs
 
-This repository provides multiple APIs.
+This repository provides multiple APIs. All of this is rather WIP and not in a final/clean state.
 
 - [parse_cb.h](parse_cb.h) is a standalone implementation of a non-allocating C parser
   that simply forwards the parsed data directly to a supplied callback.

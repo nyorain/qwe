@@ -1,0 +1,7 @@
+# vim: set ts=2 sw=2 noexpandtab syntax=yaml:
+german:
+	menu:
+		start: Spiel Starten
+		options: Optionen
+		quit: Beenden
+

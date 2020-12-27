@@ -25,3 +25,6 @@ english:
 			aa: Anti-aliasing
 			shadows: Shadow quality
 			texture: Texture quality
+Terrible\: Language:
+	menu:
+		start: ohno

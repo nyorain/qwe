@@ -1,4 +1,4 @@
-```yaml
+```
 string ::= [^\n\t][^\n]*
 name ::= string
 value(i) ::= string | \n table(i + 1) | \n array(i + 1)
@@ -45,7 +45,7 @@ Problems:
 
 
 Extended syntax with array-nesting:
-```yaml
+```
 string ::= [^\n\t][^\n]*
 name ::= string
 value(i) ::= string | \n table(i + 1) | \n array(i + 1)
@@ -54,3 +54,113 @@ array(i) ::= (\t{i}string\n)+
 arraynest(i) ::= \t{i}-\n(\t{i}value(i)\n)+
 file ::= value(0) | table(0) | array(0)
 ```
+
+---
+
+WIP v0.2
+
+The idea here is to further simplify the spec. Just make everything a table.
+Strings are just an entry mapping the string to an empty table.
+This means though that order in tables is now more important than before.
+
+Data representation:
+```
+struct Table {
+	std::vector<std::pair<std::string, Table>> entries;
+};
+```
+
+And that's it. A lot more simplistic, more beautiful than before.
+
+Also, we should solve the array-table problem from above.
+Just make the escaped colon a fixed part.
+
+New syntax:
+```
+string ::= [^\n\t\:]([^\n\:] | (\:))*
+name ::= string
+table(i) ::= (entry(i)\n)+
+entry(i) ::= \t{i}(name | name: string | name:? \n table(i + 1)
+file ::= table(0)
+```
+
+---
+
+# multiline idea, cleanup
+
+```
+string(i) ::= [^\n\t:] ([^\n:] | (\:) | (\ \n\t{i}))*
+entry(i)  ::= \t{i}(string(i) | string(i): string(i+1) | (empty | string(i)): \n table(i + 1)
+table(i)  ::= (entry(i)\n)*
+```
+
+A file is parsed as rule `table(0)`.
+
+Example:
+
+```
+really-long-test-table-name-that-has-to-\
+be-split-multiple-lines:
+	a: 1
+	b: 2
+	c: 3
+
+Section 3 \: A table of items:
+	This is a really long string, the first entry \
+		in this list. It can even cross multiple \
+		line boundaries. Not how the extra indent in this case helps \
+		to clear things up for the list.
+	This is the second entry
+	This the third entry
+
+# We can now also omit the colons for tables, making things more consise
+# Nah, nvm, removed that. Simplifies syntax to not have it.
+# Looked like this before:
+# `entry(i)  ::= \t{i}(string(i) | string(i): string(i+1) | (string(i):? | :) \n table(i + 1)`
+# root
+# 	table1
+# 		entry1: a
+# 		entry2: b
+# 	table2
+# 		entry3: c
+
+# Given our new 'everything is a table' idiom we can easily have nested arrays.
+# And also easily mix tables and array notation
+root:
+	:
+		1
+		2
+		3:
+			3.1
+			3.2
+			3.3
+	:
+		4
+		5
+		6
+	:
+		7
+		8
+		9
+
+# The following is explicitly now allowed (even with correct alignment)
+# Notice in the syntax how the colon cannot be ommited when the name is empty
+# root:
+# 	
+# 		1
+# 		2
+# 		3
+# 	
+# 		4
+# 		5
+# 		6
+# 	
+# 		7
+# 		8
+# 		9
+```
+
+We should also support using spaces instead of tabs for indentation.
+Should probably be determined the first time whitespace is detected at
+the beginning of a line. But must be consistent for document.
+Not sure if useful to encode this into spec.

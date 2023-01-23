@@ -359,5 +359,6 @@ struct parse_result parse_file(const char* filename, parse_func func, void* user
 	res.parser.cb = func;
 	res.parser.user = user;
 	res.error = parse_table_or_array(&res.parser);
+	fclose((FILE*) res.parser.stream);
 	return res;
 }

@@ -1,16 +1,30 @@
 #pragma once
 
-#include "data.hpp"
-#include <vector>
-#include <string>
+// Alternate parser, using callbacks.
+//
+// This one does not allocate a single byte of memory dynamically.
+// And it only needs the 'std::string_view' and 'std::size_t' features
+// from the stl, only features that could be easily replaced with standalones.
+//
+// Does not support multiline strings or escaping ':' (for now).
+//   (We don't support that so we don't ever have to copy strings.
+//    But I guess we could leave the un-escaping up to the callee?)
+
 #include <string_view>
 #include <cassert>
-#include <cstdio> // TODO: remove
+#include <cstdlib>
+
+// parse callback interface:
+// struct {
+// 	Handler& enterTable(Parser&, std::string_view name);
+// 	void exitTable(Parser&);
+// 	void entry(Parser&, std::string_view value);
+// };
 
 struct Location {
 	unsigned line {};
 	unsigned col {};
-	std::vector<std::string_view> nest {};
+	unsigned nest {};
 };
 
 struct Parser {
@@ -22,22 +36,20 @@ enum class ErrorType {
 	none,
 	unexpectedEnd,
 	highIndentation,
-	lowIndentation, // only for multiline-strings
 };
 
 struct Error {
 	ErrorType type;
-	Location location;
+	Location location {};
 	std::string_view data {}; // dependent on 'type'
 };
 
-Table parseTable(Parser&, Error& error);
+template<typename CB>
+void parseTable(CB& cb, Parser&, Error& error);
 
-inline std::string parseString(Parser& parser, Error& error) {
+inline std::string_view parseString(Parser& parser, Error& error) {
 	error = {ErrorType::none};
 	auto i = std::size_t(0);
-	auto indent = parser.location.nest.size();
-	std::string ret;
 
 	while(i < parser.input.size()) {
 		if(i == 0u && parser.input[i] == '\t') {
@@ -45,57 +57,22 @@ inline std::string parseString(Parser& parser, Error& error) {
 			return {};
 		}
 
-		if(parser.input[i] == '\\') {
-			if(parser.input.size() == i + 1) {
-				// NOTE: weird case. input ends on backslash
-				ret += '\\';
-				parser.input = {};
-				return ret;
-			}
-
-			++i;
-			++parser.location.col;
-
-			if(parser.input[i] == '\\')  {
-				ret += '\\';
-			} else if(parser.input[i] == '\n') {
-				// nothing to append
-				parser.location.col = 0;
-				++parser.location.line;
-				++i;
-
-				if(parser.input.size() < i + indent) {
-					error = {ErrorType::unexpectedEnd, parser.location};
-					return {};
-				}
-
-				if(parser.input.find_first_not_of("\t", i) != i + indent) {
-					error = {ErrorType::lowIndentation, parser.location};
-					return {};
-				}
-
-				parser.location.col += indent;
-				i += indent;
-			} else if(parser.input[i] == ':') {
-				ret += ':';
-			}
-		} else if(parser.input[i] == ':' || parser.input[i] == '\n') {
+		if(parser.input[i] == ':' || parser.input[i] == '\n') {
 			break;
-		} else {
-			ret += parser.input[i];
 		}
 
 		++i;
 		++parser.location.col;
 	}
 
+	auto ret = parser.input.substr(0, i);
 	parser.input = parser.input.substr(i);
 	return ret;
 }
 
-inline std::pair<std::string, Table> parseEntry(Parser& parser, Error& error, bool& success) {
+template<typename CB>
+inline bool parseEntry(CB& cb, Parser& parser, Error& error) {
 	error = {ErrorType::none};
-	success = false;
 
 	auto first = parser.input.npos;
 	std::string_view after;
@@ -107,7 +84,7 @@ inline std::pair<std::string, Table> parseEntry(Parser& parser, Error& error, bo
 		if(first == after.npos) {
 			parser.location.col += first;
 			parser.input = {}; // reached end of document
-			return {};
+			return false;
 		}
 
 		// Comment, skip to next line.
@@ -119,7 +96,7 @@ inline std::pair<std::string, Table> parseEntry(Parser& parser, Error& error, bo
 				// reached end of document
 				parser.location.col += parser.input.size();
 				parser.input = {};
-				return {};
+				return false;
 			}
 
 			++parser.location.line;
@@ -140,18 +117,18 @@ inline std::pair<std::string, Table> parseEntry(Parser& parser, Error& error, bo
 	}
 
 	if(parser.input.empty()) {
-		return {};
+		return false;
 	}
 
 	// indentation is suddenly too high
-	if(first > parser.location.nest.size()) {
+	if(first > parser.location.nest) {
 		error = {ErrorType::highIndentation, parser.location};
-		return {};
+		return false;
 	}
 
 	// indentation is too low, line does not belong to this value anymore
-	if(first < parser.location.nest.size()) {
-		return {};
+	if(first < parser.location.nest) {
+		return false;
 	}
 
 	parser.location.col += first;
@@ -167,8 +144,8 @@ inline std::pair<std::string, Table> parseEntry(Parser& parser, Error& error, bo
 	}
 
 	if(parser.input.empty() || parser.input[0] == '\n') {
-		success = true;
-		return {std::move(name), {}};
+		cb.entry(parser, name);
+		return true;
 	}
 
 	assert(parser.input[0] == ':');
@@ -185,47 +162,36 @@ inline std::pair<std::string, Table> parseEntry(Parser& parser, Error& error, bo
 	parser.input = parser.input.substr(tablePos);
 
 	// parse table mapping dst entry
-	parser.location.nest.push_back(name);
+	auto& nextCB = cb.enterTable(parser, name);
+	++parser.location.nest;
 
-	Table table;
 	if(parser.input[0] == '\n') {
 		++parser.location.line;
 		parser.location.col = 0;
 		parser.input = parser.input.substr(1);
 
 		// std::printf("table at %d{%s}\n", int(parser.location.nest.size()), parser.location.nest.back().data());
-		table = parseTable(parser, error);
+		parseTable(nextCB, parser, error);
 		// std::printf("%d: entries: %d\n",int(parser.location.nest.size()), int(table.size()));
 	} else {
 		auto dst = parseString(parser, error);
-		table.push_back({std::move(dst), {}});
+		cb.entry(parser, dst);
 	}
-
-	assert(parser.location.nest.back() == name);
-	parser.location.nest.pop_back();
 
 	if(error.type != ErrorType::none) {
-		return {};
+		return false;
 	}
 
-	success = true;
-	return {std::move(name), std::move(table)};
+	cb.exitTable(parser);
+	assert(parser.location.nest > 0);
+	--parser.location.nest;
+
+	return true;
 }
 
-inline Table parseTable(Parser& parser, Error& error) {
+template<typename CB>
+inline void parseTable(CB& cb, Parser& parser, Error& error) {
 	error = {ErrorType::none};
-
-	Table table;
-	auto success = true;
-
-	while(true) {
-		auto entry = parseEntry(parser, error, success);
-		if(!success) {
-			break;
-		}
-
-		table.push_back(std::move(entry));
-	}
-
-	return table;
+	while(parseEntry(cb, parser, error)) /*noop*/ ;
 }
+

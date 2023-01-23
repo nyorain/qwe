@@ -2,6 +2,7 @@
 
 #include "common.hpp"
 #include "data.hpp"
+#include <optional>
 
 struct Location {
 	unsigned line {};

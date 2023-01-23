@@ -1,5 +1,3 @@
-# vim: set ts=2 sw=2 noexpandtab syntax=yaml:
-
 # atmosphere boundaries in meters
 bottom: 6360000.0
 top: 6420000.0

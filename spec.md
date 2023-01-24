@@ -164,3 +164,14 @@ We should also support using spaces instead of tabs for indentation.
 Should probably be determined the first time whitespace is detected at
 the beginning of a line. But must be consistent for document.
 Not sure if useful to encode this into spec.
+
+---
+
+Including comments:
+
+```
+comment   ::= [ \t]* #[\n]*
+string(i) ::= [^\n\t:] ([^\n:] | (\:) | (\ \n\t{i}))*
+entry(i)  ::= comment | \t{i}(string(i) | string(i): string(i+1) | (empty | string(i)): \n table(i + 1)
+table(i)  ::= (entry(i)\n)*
+```
